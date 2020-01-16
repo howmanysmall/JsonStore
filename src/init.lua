@@ -108,6 +108,7 @@ end
 
 --[[**
 	Send a `GET` request to your endpoint asynchronously.
+
 	@param [t:string] path Path to perform GET request to.
 	@returns [tPlus:promise] A promise that can be used for handling the code.
 **--]]
@@ -146,6 +147,7 @@ end
 
 --[[**
 	Send a `GET` request to your endpoint.
+
 	@param [t:string] path Path to perform GET request to.
 	@returns [t:table] Data returned from database.
 **--]]
@@ -205,6 +207,7 @@ end
 
 --[[**
 	Send a `DELETE` request to your endpoint asynchronously.
+
 	@param [t:string] path Path to perform DELETE request to.
 	@returns [tPlus:promise] A promise that can be used for handling the code.
 **--]]
@@ -242,6 +245,7 @@ end
 
 --[[**
 	Send a `DELETE` request to your endpoint.
+
 	@param [t:string] path Path to perform DELETE request to.
 	@returns [t:boolean] True if DELETE request was successful.
 **--]]
@@ -258,6 +262,7 @@ end
 
 --[[**
 	Send a `PUT` request to your endpoint asynchronously.
+
 	@param [t:string] Path Path to perform PUT request to.
 	@param [t:table] Content Data to PUT into the database.
 	@returns [tPlus:promise] A promise that can be used for handling the code.
@@ -302,6 +307,7 @@ end
 
 --[[**
 	Send a `PUT` request to your endpoint.
+
 	@param [t:string] path Path to perform PUT request to.
 	@param [t:table] content Data to PUT into the database.
 	@returns [t:table] The content PUT into the database.
@@ -319,6 +325,7 @@ end
 
 --[[**
 	Send a `POST` request to your endpoint asynchronously.
+
 	@param [t:string] path Path to perform POST request to.
 	@param [t:table] content Data to POST to the database.
 	@returns [tPlus:promise] A promise that can be used for handling the code.
@@ -363,6 +370,7 @@ end
 
 --[[**
 	Send a `POST` request to your endpoint.
+
 	@param [t:string] path Path to perform POST request to.
 	@param [t:table] content Data to POST to the database.
 	@returns [t:table] The content POST'ed to the database.
