@@ -12,11 +12,12 @@ local JsonStore = {
 JsonStore.__index = JsonStore
 
 local optionalToken = t.optional(t.match("(%w+)$"))
-local putTuple = t.tuple(t.optionalString, t.table)
+local putTuple = t.tuple(t.string, t.table)
 
 local API_URL = "https://www.jsonstore.io"
 local REJECT_ERROR = "Couldn't reach JsonStore! Got status message %q with error code %d."
 local JSON_HEADER = {["Content-Type"] = "application/json"}
+local NULL = false and table.create(0) or nil -- So selene doesn't yell at me.
 
 local function catchErrorCreator(functionName)
 	assert(t.string(functionName))
@@ -75,18 +76,15 @@ end
 
 --[[**
 	Returns the current token for the store.
-
-	@param [t:optional<t:boolean>] fullUrl Whether or not the jsonstore URL will be included.
 	@returns [t:string] The token of the current store.
 **--]]
-function JsonStore:getToken(fullUrl)
-	assert(t.optionalBoolean(fullUrl))
-	return fullUrl and API_URL .. self._token or self._token
+function JsonStore:getToken()
+	return self._token
 end
 
 --[[**
 	Verifies web server is alive.
-	@returns [t:boolean] True if server is online.
+	@returns [t:boolean] True iff server is online.
 **--]]
 function JsonStore:ping()
 	local success, valueOrError = HttpPromise.promiseRequest({
@@ -110,16 +108,15 @@ end
 
 --[[**
 	Send a `GET` request to your endpoint asynchronously.
-	@param [t:optional<t:string>] path Path to perform GET request to.
+	@param [t:string] path Path to perform GET request to.
 	@returns [tPlus:promise] A promise that can be used for handling the code.
 **--]]
 function JsonStore:getAsync(path)
-	local typeSuccess, typeError = t.optionalString(path)
+	local typeSuccess, typeError = t.string(path)
 	if not typeSuccess then
 		return Promise.reject(typeError)
 	end
 
-	path = path or ""
 	local catchFunction = catchErrorCreator("JsonStore:getAsync")
 
 	return HttpPromise.promiseRequest({
@@ -149,12 +146,12 @@ end
 
 --[[**
 	Send a `GET` request to your endpoint.
-	@param [t:optional<t:string>] path Path to perform GET request to.
+	@param [t:string] path Path to perform GET request to.
 	@returns [t:table] Data returned from database.
 **--]]
 function JsonStore:get(path)
 	assert(t.optionalString(path))
-	local success, valueOrError = self:getAsync(path or ""):catch(catchErrorCreator("JsonStore:get")):await()
+	local success, valueOrError = self:getAsync(path):catch(catchErrorCreator("JsonStore:get")):await()
 	if success then
 		return valueOrError
 	else
@@ -164,17 +161,59 @@ function JsonStore:get(path)
 end
 
 --[[**
-	Send a `DELETE` request to your endpoint asynchronously.
-	@param [t:optional<t:string>] path Path to perform DELETE request to.
+	This function is similar to DataStore2's `GetTable`, where it will set the data to the default if it doesn't exist asynchronously.
+
+	@param [t:string] path The path to use.
+	@param [t:table] defaultData The default data if it doesn't exist.
 	@returns [tPlus:promise] A promise that can be used for handling the code.
 **--]]
-function JsonStore:deleteAsync(path)
-	local typeSuccess, typeError = t.optionalString(path)
+function JsonStore:getDefaultAsync(path, defaultData)
+	local typeSuccess, typeError = putTuple(path, defaultData)
 	if not typeSuccess then
 		return Promise.reject(typeError)
 	end
 
-	path = path or ""
+	local catchFunction = catchErrorCreator("JsonStore:getDefaultAsync")
+	return self:getAsync(path):andThen(function(currentData)
+		if next(currentData) == nil then
+			return self:postAsync(path, defaultData):andThen(function(savedData)
+				return Promise.resolve(savedData)
+			end):catch(catchFunction)
+		else
+			return Promise.resolve(currentData)
+		end
+	end)
+end
+
+--[[**
+	This function is similar to DataStore2's `GetTable`, where it will set the data to the default if it doesn't exist.
+
+	@param [t:string] path The path to use.
+	@param [t:table] defaultData The default data if it doesn't exist.
+	@returns [t:table] The data stored in the database.
+**--]]
+function JsonStore:getDefault(path, defaultData)
+	assert(putTuple(path, defaultData))
+	local success, valueOrError = self:getDefaultAsync(path, defaultData):catch(catchErrorCreator("JsonStore:getDefault")):await()
+	if success then
+		return valueOrError
+	else
+		warn("JsonStore:getDefault failed!", valueOrError)
+		return false
+	end
+end
+
+--[[**
+	Send a `DELETE` request to your endpoint asynchronously.
+	@param [t:string] path Path to perform DELETE request to.
+	@returns [tPlus:promise] A promise that can be used for handling the code.
+**--]]
+function JsonStore:deleteAsync(path)
+	local typeSuccess, typeError = t.string(path)
+	if not typeSuccess then
+		return Promise.reject(typeError)
+	end
+
 	local catchFunction = catchErrorCreator("JsonStore:deleteAsync")
 
 	return HttpPromise.promiseRequest({
@@ -203,12 +242,12 @@ end
 
 --[[**
 	Send a `DELETE` request to your endpoint.
-	@param [t:optional<t:string>] path Path to perform DELETE request to.
+	@param [t:string] path Path to perform DELETE request to.
 	@returns [t:boolean] True if DELETE request was successful.
 **--]]
 function JsonStore:delete(path)
-	assert(t.optionalString(path))
-	local success, valueOrError = self:deleteAsync(path or ""):catch(catchErrorCreator("JsonStore:delete")):await()
+	assert(t.string(path))
+	local success, valueOrError = self:deleteAsync(path):catch(catchErrorCreator("JsonStore:delete")):await()
 	if success then
 		return valueOrError
 	else
@@ -229,7 +268,6 @@ function JsonStore:putAsync(path, content)
 		return Promise.reject(typeError)
 	end
 
-	path = path or ""
 	local catchFunction = catchErrorCreator("JsonStore:putAsync")
 
 	return HttpPromise.promiseEncode(content):andThen(function(newContent)
@@ -270,7 +308,7 @@ end
 **--]]
 function JsonStore:put(path, content)
 	assert(putTuple(path, content))
-	local success, valueOrError = self:putAsync(path or "", content):catch(catchErrorCreator("JsonStore:put")):await()
+	local success, valueOrError = self:putAsync(path, content):catch(catchErrorCreator("JsonStore:put")):await()
 	if success then
 		return valueOrError
 	else
@@ -281,7 +319,7 @@ end
 
 --[[**
 	Send a `POST` request to your endpoint asynchronously.
-	@param [t:optional<t:string>] path Path to perform POST request to.
+	@param [t:string] path Path to perform POST request to.
 	@param [t:table] content Data to POST to the database.
 	@returns [tPlus:promise] A promise that can be used for handling the code.
 **--]]
@@ -291,7 +329,6 @@ function JsonStore:postAsync(path, content)
 		return Promise.reject(typeError)
 	end
 
-	path = path or ""
 	local catchFunction = catchErrorCreator("JsonStore:postAsync")
 
 	return HttpPromise.promiseEncode(content):andThen(function(newContent)
@@ -326,19 +363,27 @@ end
 
 --[[**
 	Send a `POST` request to your endpoint.
-	@param [t:optional<t:string>] path Path to perform POST request to.
+	@param [t:string] path Path to perform POST request to.
 	@param [t:table] content Data to POST to the database.
 	@returns [t:table] The content POST'ed to the database.
 **--]]
 function JsonStore:post(path, content)
 	assert(putTuple(path, content))
-	local success, valueOrError = self:postAsync(path or "", content):catch(catchErrorCreator("JsonStore:post")):await()
+	local success, valueOrError = self:postAsync(path, content):catch(catchErrorCreator("JsonStore:post")):await()
 	if success then
 		return valueOrError
 	else
 		warn("JsonStore:post failed!", valueOrError)
 		return false
 	end
+end
+
+--[[**
+	Destroys the JsonStore so it can't be used anymore.
+	@returns [void]
+**--]]
+function JsonStore:destroy()
+	setmetatable(self, NULL)
 end
 
 return JsonStore
